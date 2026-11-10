@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cutroom · 绿幕影像工作台</title>
+<style>
+  :root {
+    --bg: #17181b;
+    --panel: #1f2125;
+    --panel-2: #26282d;
+    --line: #34373d;
+    --text: #d8dade;
+    --dim: #8d9199;
+    --accent: #4c9aff;
+    --accent-2: #5bd6a0;
+    --warn: #e5a44a;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  #rangeLabels, #timelineWrap { flex-wrap: wrap; }
+  #frameReadout { font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #estimateWrap { color: var(--warn); font-size: 11px; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #app { display: flex; height: 100%; }
+
+  /* ---------------- 左侧控制 ---------------- */
+  #side {
+    width: 292px; flex: 0 0 292px;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  #side::-webkit-scrollbar { width: 9px; }
+  #side::-webkit-scrollbar-thumb { background: #3a3d44; border-radius: 5px; }
+
+  .brand {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .brand b { font-size: 15px; letter-spacing: .3px; }
+  .brand span { font-size: 11px; color: var(--dim); }
+
+  .section { padding: 8px 13px; border-bottom: 1px solid var(--line); }
+  .section h3 {
+    margin: 0 0 7px; font-size: 11px; font-weight: 600;
+    letter-spacing: .8px; text-transform: uppercase; color: var(--dim);
+  }
+
+  .fold-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+  .section .fold-heading h3 { margin: 0; }
+  button.fold-toggle { padding: 2px 7px; font-size: 11px; color: var(--dim); background: transparent; }
+  button.fold-toggle:hover { color: var(--text); background: var(--panel-2); }
+  button.fold-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .row label { flex: 0 0 66px; font-size: 12px; color: #b4b8bf; }
+  .row label.wide { flex: 0 0 74px; }
+  .row output {
+    flex: 0 0 42px; text-align: right; font-size: 11px;
+    color: var(--dim); font-variant-numeric: tabular-nums;
+  }
+
+  /* 可输入数值框 */
+  input.num {
+    flex: 0 0 52px; width: 52px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 5px;
+    padding: 3px 5px; font: inherit; font-size: 11.5px;
+    font-variant-numeric: tabular-nums; text-align: right;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  input.num::-webkit-outer-spin-button,
+  input.num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input.num:hover { border-color: #454951; }
+  input.num:focus { border-color: var(--accent); background: #2a2d33; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1 1 0; min-width: 0;      /* min-width:0 才能让滑动条真正收缩 */
+    height: 3px; border-radius: 2px;
+    background: #3c4048; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 13px; height: 13px;
+    border-radius: 50%; background: var(--accent);
+    cursor: pointer; border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  input[type=range]:disabled { opacity: .35; }
+  input[type=range]:disabled::-webkit-slider-thumb { background: #666; box-shadow: none; }
+
+  button {
+    font: inherit; font-size: 12px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 10px; cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  button:hover { background: #303339; border-color: #454951; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #5ea6ff; }
+  button.ghost { background: transparent; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .btn-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .swatch-row { display: flex; align-items: center; gap: 8px; }
+  #swatch {
+    width: 34px; height: 34px; border-radius: 6px;
+    border: 1px solid #4a4e56; flex: 0 0 34px;
+  }
+  #screenHex {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+    color: var(--dim);
+  }
+
+  .hint { font-size: 10.5px; color: var(--dim); line-height: 1.5; margin: 5px 0 0; }
+  kbd {
+    background: #2c2f35; border: 1px solid #3f434b; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 4px; font-size: 10px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .seg { display: flex; background: var(--panel-2); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button {
+    flex: 1; border: none; background: transparent; padding: 6px 4px;
+    border-radius: 5px; font-size: 11.5px; color: var(--dim);
+  }
+  .seg button.on { background: var(--accent); color: #fff; }
+
+  /* ---------------- 右侧画布 ---------------- */
+  #main {
+    flex: 1; display: flex; flex-direction: column;
+    min-width: 0; background: #202226;
+  }
+  #stage {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      linear-gradient(45deg, #23252a 25%, transparent 25%) 0 0 / 22px 22px,
+      linear-gradient(-45deg, #23252a 25%, transparent 25%) 0 11px / 22px 22px,
+      linear-gradient(45deg, transparent 75%, #23252a 75%) 11px -11px / 22px 22px,
+      linear-gradient(-45deg, transparent 75%, #23252a 75%) -11px 0 / 22px 22px,
+      #1a1c20;
+  }
+  #view {
+    max-width: 100%; max-height: 100%;
+    display: block; cursor: crosshair;
+    box-shadow: 0 6px 30px rgba(0,0,0,.5);
+  }
+  #view.picking { cursor: copy; }
+  /* 叠加层画布：压在 view 正上方，尺寸与它完全一致 */
+  #overlay {
+    position: absolute; pointer-events: none;
+    box-shadow: 0 6px 30px rgba(0,0,0,.5);
+    display: none;
+  }
+
+  #drop {
+    position: absolute; inset: 16px;
+    border: 2px dashed #3e444d;
+    border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; color: var(--dim); text-align: center; padding: 24px;
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  #stage.dragover #drop { opacity: 1; }
+  #empty {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: var(--dim); text-align: center; padding: 30px;
+  }
+  #empty svg { opacity: .35; }
+  #empty b { color: #c3c7cd; font-size: 15px; font-weight: 500; }
+
+  #bottombar {
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+    padding: 9px 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  #bottomWrap { border-top: 1px solid var(--line); background: var(--panel); }
+
+  /* ---- 时间轴：整条轴 = 4 秒，永远填满 ---- */
+  #rangeBar { padding: 9px 14px 6px; }
+
+  #rangeTrack {
+    position: relative; height: 34px; border-radius: 6px;
+    background: linear-gradient(90deg, #262a31 0%, #2d323a 50%, #262a31 100%);
+    border: 1px solid #343941;
+    overflow: hidden; user-select: none; touch-action: none;
+    cursor: grab;
+  }
+  #rangeTrack.dragging { cursor: grabbing; }
+  #rangeTrack.empty { cursor: default; }
+
+  /* 每秒一条刻度线（4 秒 = 4 格） */
+  #rangeGuide {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image: repeating-linear-gradient(
+      90deg, transparent 0, transparent calc(25% - 1px),
+      rgba(255,255,255,.11) calc(25% - 1px), rgba(255,255,255,.11) 25%);
+  }
+
+  /* 两端箭头：表示这个方向还有内容可拖 */
+  #rangeEdgeL, #rangeEdgeR {
+    position: absolute; top: 0; bottom: 0; width: 22px;
+    display: none; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--accent); pointer-events: none;
+  }
+  #rangeEdgeL { left: 0; background: linear-gradient(90deg, rgba(76,154,255,.40), transparent); }
+  #rangeEdgeR { right: 0; background: linear-gradient(270deg, rgba(76,154,255,.40), transparent); }
+
+  /* 播放头：位置 = 当前时间在 4 秒窗口里的相对位置，可拖动 */
+  #rangePlayhead {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: #fff; pointer-events: auto;
+    cursor: ew-resize; touch-action: none;
+    box-shadow: 0 0 6px rgba(0,0,0,.85);
+  }
+  /* 左右各加宽 8px 的透明热区，方便抓取 */
+  #rangePlayhead::before {
+    content: ''; position: absolute;
+    left: -8px; right: -8px; top: -4px; bottom: -4px;
+  }
+  #rangeTrack.scrubbing { cursor: ew-resize; }
+
+  /* 拖动时冒出的时间气泡：贴在轴内竖直居中，不越出轴外（轴是 overflow:hidden） */
+  #rangeTip {
+    position: absolute; top: 50%;
+    transform: translate(-50%, -50%);
+    background: #14161a; border: 1px solid var(--accent);
+    color: #eef1f5; font-size: 11px; line-height: 1;
+    padding: 4px 7px;
+    border-radius: 4px; white-space: nowrap;
+    pointer-events: none; display: none;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 2px 8px rgba(0,0,0,.7);
+  }
+
+  #rangeLabels {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 6px; font-size: 11px; color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  button.mini {
+    padding: 2px 8px; font-size: 11px; border-radius: 5px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  button.mini.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #rangeLabels .chip {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px;
+  }
+  #rangeLabels .chip b { color: var(--accent); font-weight: 500; }
+  #timelineWrap { display: flex; align-items: center; gap: 10px; padding: 0 14px 9px; }
+  #tc { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--dim); flex: 0 0 auto; }
+
+  #status {
+    font-size: 11px; color: var(--dim); padding: 6px 14px;
+    border-top: 1px solid var(--line); background: #1b1d21;
+    display: flex; gap: 14px; align-items: center;
+  }
+  #status .badge {
+    padding: 1px 6px; border-radius: 4px; background: #2b2e34;
+    color: #9aa0a8; font-size: 10px;
+  }
+  #status .ok { color: var(--accent-2); }
+
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal.on { display: flex; }
+  .modal-box {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px 20px; min-width: 300px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  }
+  .modal-box h3 { margin: 0 0 12px; font-size: 14px; }
+  .modal-box .row { margin-bottom: 10px; }
+  .modal-box .row label { flex: 0 0 90px; }
+  .modal-box input[type=number] {
+    width: 90px; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; font: inherit;
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .prog { height: 4px; background: #303339; border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  .prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+</style>
+<link href="studio.css?v=20261110-chevron" rel="stylesheet"/></head>
+<body><header class="studio-topbar"><div class="studio-identity"><span aria-hidden="true" class="studio-mark"><svg fill="none" viewbox="0 0 24 24"><path d="M4 7V4h3m10 0h3v3m0 10v3h-3M7 20H4v-3" stroke="currentColor" stroke-linecap="round" stroke-width="1.7"></path><path d="m9 8 7 4-7 4z" fill="currentColor"></path></svg></span><span class="studio-wordmark">Cutroom</span><span class="studio-product">绿幕影像工作台</span></div><span class="studio-topnote"><i></i><span>本机处理 · 素材不上传</span></span></header>
+<div id="app">
+<!-- ==================== 控制面板 ==================== -->
+<aside id="side"><div class="brand"><b>抠像设置</b><span>画面与边缘</span></div><div class="inspector-scroll">
+
+<div class="section import-section">
+<h3>素材</h3>
+<div class="upload-entry">
+<button type="button" id="btnVideo" aria-expanded="false" aria-controls="uploadMenu" aria-haspopup="true">上传视频 <svg class="upload-chevron" aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<div id="uploadMenu" hidden aria-label="上传方式">
+<button type="button" id="btnChooseVideos">选择视频 <small>单个或多个视频</small></button>
+<button type="button" id="btnFolder">选择文件夹 <small>读取文件夹及子目录内的视频</small></button>
+</div>
+</div>
+<p class="hint">支持多选视频，或拖入多个视频／文件夹。</p>
+</div>
+<div class="section">
+<h3>屏幕色</h3>
+<div class="swatch-row">
+<div id="swatch" style="background:#1a9e1e"></div>
+<div style="flex:1">
+<div id="screenHex">#1A9E1E</div>
+<div style="font-size:11px;color:var(--dim)">吸取到的绿幕颜色</div>
+</div>
+</div>
+<div class="btn-grid" style="margin-top:10px">
+<button class="ghost" id="btnPick">吸管取色</button>
+<button class="ghost" id="btnAuto">自动检测</button>
+</div>
+</div>
+<div class="section">
+<h3>遮罩</h3>
+<div class="row">
+<label>Screen Gain</label>
+<input id="gain" max="200" min="0" step="1" type="range" value="100"/>
+<input class="num" id="gainO" max="200" min="0" step="1" type="number" value="100.0"/>
+</div>
+<div class="row">
+<label>Screen Balance</label>
+<input id="balance" max="100" min="0" step="1" type="range" value="50"/>
+<input class="num" id="balanceO" max="100" min="0" step="1" type="number" value="50.0"/>
+</div>
+<div class="row">
+<label>Clip Black</label>
+<input id="clipBlack" max="98" min="0" step="1" type="range" value="0"/>
+<input class="num" id="clipBlackO" max="98" min="0" step="1" type="number" value="0.0"/>
+</div>
+<div class="row">
+<label>Clip White</label>
+<input id="clipWhite" max="100" min="2" step="1" type="range" value="100"/>
+<input class="num" id="clipWhiteO" max="100" min="2" step="1" type="number" value="100.0"/>
+</div>
+<div class="row" style="margin-top:12px">
+<label style="flex:0 0 auto">
+<input checked="" id="unpremultiply" style="vertical-align:-2px;margin-right:5px" type="checkbox"/>
+<span style="font-size:12px">Unpremultiply Result</span>
+</label>
+</div>
+</div>
+<div class="section">
+<div class="fold-heading">
+<h3>边缘</h3>
+<button aria-controls="edgeControls" aria-expanded="false" aria-label="展开边缘设置" class="fold-toggle" data-fold-label="" data-fold-title="边缘设置" id="edgeToggle" type="button">展开</button>
+</div>
+<div hidden="" id="edgeControls">
+<div class="row">
+<label>Shrink/Grow</label>
+<input id="shrinkGrow" max="6" min="-6" step="0.5" type="range" value="0"/>
+<input class="num" id="shrinkGrowO" max="6" min="-6" step="0.5" type="number" value="0.0"/>
+</div>
+<div class="row">
+<label>Softness</label>
+<input id="softness" max="8" min="0" step="0.1" type="range" value="0"/>
+<input class="num" id="softnessO" max="8" min="0" step="0.1" type="number" value="0.0"/>
+</div>
+<div class="row">
+<label>Simple Choker</label>
+<input id="choker" max="20" min="-20" step="0.5" type="range" value="1"/>
+<input class="num" id="chokerO" max="20" min="-20" step="0.5" type="number" value="1.0"/>
+</div>
+</div>
+</div>
+<div class="section">
+<h3>去溢色</h3>
+<div class="row">
+<label>Despill</label>
+<input id="despill" max="1" min="0" step="0.01" type="range" value="0"/>
+<input class="num" id="despillO" max="1" min="0" step="0.01" type="number" value="0.00"/>
+</div>
+<div class="row">
+<label>模式</label>
+<div class="seg" id="despillMode" style="flex:1">
+<button class="on" data-v="project">投影</button>
+<button data-v="max">Max</button>
+<button data-v="average">平均</button>
+</div>
+</div>
+<div class="row">
+<label>Despot W</label>
+<input id="despotWhite" max="1" min="0" step="0.01" type="range" value="0"/>
+<input class="num" id="despotWhiteO" max="1" min="0" step="0.01" type="number" value="0.00"/>
+</div>
+<div class="row">
+<label>Despot B</label>
+<input id="despotBlack" max="1" min="0" step="0.01" type="range" value="0"/>
+<input class="num" id="despotBlackO" max="1" min="0" step="0.01" type="number" value="0.00"/>
+</div>
+</div>
+<div class="section">
+<div class="fold-heading">
+<h3>视图</h3>
+<button aria-controls="viewMatte viewSplit viewExtra" aria-expanded="false" aria-label="展开其他视图" class="fold-toggle" data-fold-label="" data-fold-title="其他视图" id="viewToggle" type="button">展开</button>
+</div>
+<div class="seg" id="viewSeg" style="margin-bottom:8px">
+<button class="on" data-v="result">结果</button>
+<button data-v="source">原片</button>
+<button data-v="matte" hidden="" id="viewMatte">Matte</button>
+<button data-v="split" hidden="" id="viewSplit">对比</button>
+</div>
+<div hidden="" id="viewExtra">
+<div class="row" id="splitRow" style="display:none">
+<label>分割位置</label>
+<input id="split" max="1" min="0" step="0.005" type="range" value="0.5"/>
+<output id="splitO">0.50</output>
+</div>
+<div class="btn-grid three" style="margin-top:4px">
+<button class="ghost" id="btnBgBlack">黑底</button>
+<button class="ghost" id="btnBgWhite">白底</button>
+<button class="ghost" id="btnBgGray">灰底</button>
+</div>
+</div>
+</div>
+<div class="section">
+<div class="fold-heading">
+<h3>预设</h3>
+
+</div>
+<div class="btn-grid">
+<button class="ghost" data-preset="clean">干净棚拍</button>
+<button class="ghost" data-preset="soft">柔光照</button>
+<button class="ghost" data-preset="hair">发丝优先</button>
+<button class="ghost" data-preset="strict">压死背景</button>
+</div>
+
+</div>
+
+<div class="inspector-actions" style="padding:12px 16px;margin-top:auto">
+<div class="btn-grid">
+<button class="ghost" id="btnDefaults">恢复默认值</button>
+<button class="ghost" id="btnReset">全部重置</button>
+</div>
+<p class="hint" style="text-align:center"><kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 重做</p>
+</div>
+<div hidden="" id="legacyExports">
+<button class="primary" id="btnPng" style="width:100%">导出当前帧 PNG（透明）</button>
+<div class="btn-grid" style="margin-top:6px">
+<button id="btnSeq">导出 PNG 序列</button>
+<button id="btnWebm">导出 WebM</button>
+</div>
+<p class="hint">要透明背景请用 <b>PNG</b> 或 <b>PNG 序列</b>。<br/>WebM 是浏览器录制的，只含画面不含 alpha。</p>
+</div></div><div class="section export-dock"><h3>导出成品</h3><button class="primary" disabled="" id="btnPackedMp4" style="width:100%;margin-bottom:6px">下载当前素材</button><button type="button" id="btnBatchDownload" class="batch-download" disabled>下载全部素材</button><p class="hint export-summary">按当前选段打包 ZIP，不含音频<br/>每个娃娃：1 个 MP4 ＋ 3 张 PNG ＋ Lottie<br/>下载自动叠加 3 层 · 全部下载按娃娃分文件夹</p><div hidden="" id="packedProgressBox" style="margin-bottom:10px">
+<progress id="packedProgress" max="1" style="width:100%;accent-color:var(--accent)" value="0"></progress>
+<div class="row" style="justify-content:space-between;margin-top:5px">
+<span id="packedProgressText" role="status" style="font-size:11px">准备中…</span>
+<button class="mini" id="btnPackedCancel" type="button">取消</button>
+</div>
+</div></div></aside>
+<!-- ==================== 画布区 ==================== -->
+<main id="main"><section aria-label="画面预览" class="monitor-shell"><div class="monitor-heading"><h1>画面预览</h1><span class="monitor-meta" id="studioFilename">尚未导入素材</span></div><div id="stage">
+<canvas height="540" id="view" style="display:none" width="960"></canvas>
+<canvas id="overlay" style="display:none"></canvas>
+<div id="empty"><div aria-hidden="true" class="empty-art"><svg fill="none" height="52" stroke="currentColor" stroke-width="1.4" viewbox="0 0 24 24" width="52">
+<rect height="16" rx="2" width="20" x="2" y="4"></rect>
+<path d="M10 9l6 3-6 3z" fill="currentColor" stroke="none"></path>
+</svg></div>
+
+<b>拖入你的绿幕素材</b>
+<div class="empty-description" style="font-size:12px">调整抠像，逐帧选段，一次导出视频与配图。</div>
+<div class="empty-formats"><span>MP4 / MOV</span><span>WEBM</span><span>PNG / JPG</span></div></div>
+<div id="drop">松开鼠标，导入素材</div>
+</div></section>
+
+<section class="asset-strip" id="taskQueue" hidden aria-label="娃娃素材">
+<div class="asset-strip-heading"><div class="task-toolbar"><h3>娃娃素材</h3><span id="batchCount">0 个素材</span></div><div class="task-selection"><button type="button" id="taskScrollPrev" class="strip-nav" hidden aria-label="向左浏览素材">‹</button><button type="button" id="taskScrollNext" class="strip-nav" hidden aria-label="向右浏览素材">›</button></div></div>
+<div id="taskList" aria-label="娃娃缩略图列表"></div>
+</section>
+<div id="bottomWrap"><div class="timeline-heading"><strong>片段与逐帧定位</strong><span>拖动滑轨选段 · 拖动白线查看画面</span></div>
+<div id="rangeBar">
+<div class="empty" id="rangeTrack">
+<div id="rangeGuide"></div>
+<div id="rangeEdgeL">‹</div>
+<div id="rangeEdgeR">›</div>
+<div id="rangePlayhead"></div>
+<div id="rangeTip"></div>
+</div>
+<div id="rangeLabels">
+<span class="chip">时长 <b id="rangeDur">4.00s</b></span>
+<span id="rangeIn">入 00:00:00.00</span>
+<span id="rangeOut">出 00:00:04.00</span>
+<button class="mini" disabled="" id="btnClipPrev" title="选段向前移动一帧，Shift+←">选段 −1帧</button>
+<button class="mini" disabled="" id="btnClipNext" title="选段向后移动一帧，Shift+→">选段 +1帧</button>
+<button class="mini ghost" disabled="" id="btnFullClip" title="回到视频开头，保持 4 秒选段">回到开头</button>
+<span id="rangeHint" style="margin-left:auto">逐帧拖动选段，画布跟随首帧</span>
+</div>
+</div>
+<div id="timelineWrap">
+<button disabled="" id="btnPlay" style="width:34px">▶</button>
+<span id="tc">00:00:00.00 / 00:00:00.00</span>
+<button class="mini" disabled="" id="btnPrevFrame" title="上一帧，←">◀ 前一帧</button>
+<button class="mini" disabled="" id="btnNextFrame" title="下一帧，→">后一帧 ▶</button>
+<span aria-live="polite" id="frameReadout">尚未载入帧</span>
+<label hidden="" id="estimateWrap">估算帧率 <input id="estimateFps" max="120" min="1" step="1" style="width:55px" type="number" value="30"/></label>
+<span style="font-size:11px;color:var(--dim)">空格播放 · ←/→ 逐帧 · Shift+←/→ 移动选段</span>
+</div>
+</div>
+<div id="status">
+<span class="badge" id="engineBadge">引擎</span>
+<span id="statusMsg">等待载入素材</span>
+<span id="resMsg" style="margin-left:auto"></span>
+</div>
+</main>
+</div>
+<!-- 序列导出对话框 -->
+<div class="modal" id="seqModal">
+<div class="modal-box">
+<h3>导出 PNG 序列</h3>
+<div class="row"><label>起始帧</label><input id="seqStart" min="0" type="number" value="0"/></div>
+<div class="row"><label>结束帧</label><input id="seqEnd" min="0" type="number" value="0"/></div>
+<div class="row"><label>帧率</label><input id="seqFps" max="120" min="1" type="number" value="25"/></div>
+<p class="hint" id="seqInfo"></p>
+<div class="prog"><i id="seqProg"></i></div>
+<div class="modal-actions">
+<button class="ghost" id="seqCancel">取消</button>
+<button class="primary" id="seqOk">开始导出</button>
+</div>
+</div>
+</div>
+<script src="keylight.js"></script>
+<script src="frame-timeline.js"></script>
+<script src="packed-mp4.js"></script>
+<script src="static-images.js?v=20261110-clean-controls"></script>
+<script src="lottie-template.js"></script>
+<script src="material-export.js"></script>
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ---------------------------------------------------------------------- */
+/* 状态                                                                   */
+/* ---------------------------------------------------------------------- */
+const PRESETS = {
+  clean:  { gain: 1.10, balance: 0.5, clipBlack: 0.05, clipWhite: 0.97, shrinkGrow: -0.5, softness: 0.6, despill: 0.75 },
+  soft:   { gain: 1.35, balance: 0.5, clipBlack: 0.14, clipWhite: 0.92, shrinkGrow: -1.0, softness: 1.2, despill: 0.85 },
+  hair:   { gain: 1.55, balance: 0.5, clipBlack: 0.03, clipWhite: 0.90, shrinkGrow: 0,    softness: 0.8, despill: 0.55 },
+  strict: { gain: 1.25, balance: 0.5, clipBlack: 0.35, clipWhite: 0.98, shrinkGrow: -1.5, softness: 0.4, despill: 1.0 }
+};
+const DEFAULT_PRESET = 'hair';
+function defaultParams(extra = {}) { return Keylight.mergeParams({ ...PRESETS[DEFAULT_PRESET], ...extra }); }
+
+const state = {
+  params: defaultParams(),
+  source: null,          // HTMLVideoElement | HTMLImageElement
+  isVideo: false,
+  keyer: null,
+  picking: false,
+  playing: false,
+  raf: 0,
+  layers: [],            // 叠加层：{id, canvas, visible, label}
+  clipIn: 0,             // 选区入点（秒）
+  clipOut: 0,            // 选区出点（秒）
+  clipLen: 0,            // 固定 4 秒选段；短于 4 秒的素材使用全长
+  capturing: false,      // 正在逐帧取样
+  loadToken: 0, sourceUrl: null, sourceFile: null,
+  frameTimes: [], frameExact: false,
+  displayedFrame: 0, requestedFrame: 0, pendingFrame: null, seekJob: null,
+  exporting: false,
+};
+
+/* ---------------------------------------------------------------------- */
+/* 撤销 / 重做                                                            */
+/* ---------------------------------------------------------------------- */
+const history = { stack: [], index: -1, limit: 80 };
+
+function snapshot() {
+  return JSON.stringify({
+    p: state.params,
+    layers: state.layers.map(l => ({ label: l.label, visible: l.visible }))
+  });
+}
+
+function pushHistory() {
+  const snap = snapshot();
+  if (history.index >= 0 && history.stack[history.index] === snap) return;
+  history.stack = history.stack.slice(0, history.index + 1);
+  history.stack.push(snap);
+  if (history.stack.length > history.limit) history.stack.shift();
+  history.index = history.stack.length - 1;
+}
+
+function restore(snap) {
+  const o = JSON.parse(snap);
+  state.params = Keylight.mergeParams(o.p);
+  if (o.layers) { state.layers = o.layers.map((layer, index) => ({ ...layer, id: index + 1 }));  }
+  // 忽略纯 UI 视图状态：撤销参数时不要顺手切换视图
+  state.params.view = currentView();
+  syncUI();
+  needRender = true;
+}
+
+function undo() {
+  if (history.index <= 0) { setStatus('没有可撤销的操作'); return; }
+  history.index--;
+  restore(history.stack[history.index]);
+  setStatus('已撤销');
+}
+
+function redo() {
+  if (history.index >= history.stack.length - 1) { setStatus('没有可重做的操作'); return; }
+  history.index++;
+  restore(history.stack[history.index]);
+  setStatus('已重做');
+}
+
+function currentView() {
+  const on = $('viewSeg').querySelector('button.on');
+  return on ? on.dataset.v : 'result';
+}
+
+const view = $('view');
+const tempCanvas = document.createElement('canvas');
+const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+const outCanvas = document.createElement('canvas');
+
+/* ---------------------------------------------------------------------- */
+/* 建引擎                                                                 */
+/* ---------------------------------------------------------------------- */
+function buildKeyer() {
+  state.keyer = Keylight.create(view);
+  const isGL = state.keyer instanceof Keylight.GLKeyer;
+  $('engineBadge').textContent = isGL ? 'WebGL 加速' : 'CPU 回退';
+  $('engineBadge').className = 'badge ' + (isGL ? 'ok' : '');
+}
+buildKeyer();
+
+/* ---------------------------------------------------------------------- */
+/* 渲染循环                                                               */
+/* ---------------------------------------------------------------------- */
+let needRender = true;
+function tick() {
+  // 逐帧取样时不要重复渲染，把解码能力全留给取样
+  if (state.capturing || state.seekJob) { state.raf = requestAnimationFrame(tick); return; }
+  // 播放中每帧都要重新上传并处理，否则画面会停在第一帧
+  if (state.isVideo && state.source && !state.source.paused && !state.source.ended) {
+    needRender = true;
+  }
+  if (needRender) {
+    needRender = false;
+    draw();
+  }
+  state.raf = requestAnimationFrame(tick);
+}
+
+function draw() {
+  const k = state.keyer, src = state.source;
+  if (!k || !src) return;
+  let ok = false;
+  try {
+    ok = k.upload(src);
+  } catch (e) {
+    console.warn(e);
+  }
+  if (!ok) return;
+  $('empty').style.display = 'none';
+  view.style.display = 'block';
+  k.render(state.params);
+  $('resMsg').textContent = `${k.w} × ${k.h}`;
+}
+
+/* ---------------------------------------------------------------------- */
+/* 叠加层                                                                 */
+/* 把当前参数下的抠像结果固化成一个画布，再依序叠到原片之上。               */
+/* ---------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* 参数绑定                                                               */
+/* ---------------------------------------------------------------------- */
+/* AE 刻度 → 内部归一化值。第 4 项是 scale：
+   Screen Gain 0–200 对应 0–2，Screen Balance 0–100 对应 0–1。 */
+const SLIDERS = [
+  ['gain', 'gain', 1, 100], ['balance', 'balance', 1, 100],
+  ['clipBlack', 'clipBlack', 1, 100], ['clipWhite', 'clipWhite', 1, 100],
+  ['shrinkGrow', 'shrinkGrow', 1, 1], ['softness', 'softness', 1, 1],
+  ['choker', 'choker', 1, 1],
+  ['despill', 'despill', 2, 1], ['despotWhite', 'despotWhite', 2, 1],
+  ['despotBlack', 'despotBlack', 2, 1], ['split', 'split', 2, 1]
+];
+
+for (const [id, key, digits, scale] of SLIDERS) {
+  const el = $(id);
+  el.addEventListener('input', () => {
+    const s = scale || 1;
+    state.params[key] = parseFloat(el.value) / s;
+    $(id + 'O').value = (state.params[key] * s).toFixed(digits);
+    needRender = true;
+  });
+  // 拖动过程中不入栈；松手时把"改动后的状态"记进去
+  el.addEventListener('change', () => pushHistory());
+}
+
+/* ---- 数值框可输入 ---- */
+for (const [id, key, digits, scale] of SLIDERS) {
+  const box = $(id + 'O');
+  const range = $(id);
+  const s = scale || 1;
+
+  const apply = (commit) => {
+    let v = parseFloat(box.value);
+    if (!isFinite(v)) {              // 输入非法时回退到当前值
+      box.value = (state.params[key] * s).toFixed(digits);
+      return;
+    }
+    const lo = parseFloat(range.min), hi = parseFloat(range.max);
+    v = Math.min(hi, Math.max(lo, v));   // 与滑块范围保持一致
+    state.params[key] = v / s;
+    range.value = v;
+    box.value = (state.params[key] * s).toFixed(digits);
+    needRender = true;
+    syncPresetSelection();
+    if (commit) pushHistory();
+  };
+
+  box.addEventListener('input', () => apply(false));
+  box.addEventListener('change', () => apply(true));
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); apply(true); box.blur(); }
+    else if (e.key === 'Escape') {
+      box.value = (state.params[key] * s).toFixed(digits);
+      box.blur();
+    }
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const step = parseFloat(box.step) || 1;
+      const d = (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1);
+      box.value = (parseFloat(box.value || 0) + d).toFixed(digits);
+      apply(false);
+    }
+  });
+}
+
+function syncPresetSelection() {
+  let selected = null;
+  for (const [name, values] of Object.entries(PRESETS)) {
+    if (Object.entries(values).every(([key, value]) => Math.abs(state.params[key] - value) < 1e-7)) { selected = name; break; }
+  }
+  document.querySelectorAll('[data-preset]').forEach(button => {
+    const on = button.dataset.preset === selected;
+    button.classList.toggle('preset-selected', on);
+    button.setAttribute('aria-pressed', String(on));
+  });
+}
+document.addEventListener('input', event => { if (event.target.closest('#side')) syncPresetSelection(); });
+document.addEventListener('change', event => { if (event.target.closest('#side')) syncPresetSelection(); });
+function syncUI() {
+  syncPresetSelection();
+  const p = state.params;
+  for (const [id, key, digits, scale] of SLIDERS) {
+    const s = scale || 1;
+    $(id).value = p[key] * s;
+    $(id + 'O').value = (p[key] * s).toFixed(digits);
+  }
+  $('unpremultiply').checked = p.unpremultiply !== false;
+  const [r, g, b] = p.screen;
+  $('swatch').style.background = `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
+  $('screenHex').textContent =
+    '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+  needRender = true;
+}
+
+$('unpremultiply').onchange = e => {
+  state.params.unpremultiply = e.target.checked;
+  pushHistory();
+  needRender = true;
+};
+
+/* 折叠只改变控件显示，不重置参数、视图或叠加层。每次打开页面默认收起。 */
+function setControlsExpanded(button, expanded) {
+  for (const id of button.getAttribute('aria-controls').split(/\s+/)) $(id).hidden = !expanded;
+  button.setAttribute('aria-expanded', String(expanded));
+  button.textContent = (expanded ? '收起' : '展开') + button.dataset.foldLabel;
+  button.setAttribute('aria-label', (expanded ? '收起' : '展开') + button.dataset.foldTitle);
+}
+document.querySelectorAll('.fold-toggle').forEach(button => {
+  button.addEventListener('click', () => setControlsExpanded(button, button.getAttribute('aria-expanded') !== 'true'));
+});
+
+/* 视图切换 */
+$('viewSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  [...$('viewSeg').children].forEach(b => b.classList.toggle('on', b === btn));
+  state.params.view = btn.dataset.v;
+  $('splitRow').style.display = state.params.view === 'split' ? 'flex' : 'none';
+  needRender = true;
+});
+
+/* 去溢色模式 */
+$('despillMode').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  [...$('despillMode').children].forEach(b => b.classList.toggle('on', b === btn));
+  state.params.despillMode = btn.dataset.v;
+  needRender = true;
+});
+
+/* 背景色 */
+$('btnBgBlack').onclick = () => { state.params.view = 'comp'; state.params.bgColor = [0, 0, 0]; syncViewSeg('result'); needRender = true; };
+$('btnBgWhite').onclick = () => { state.params.view = 'comp'; state.params.bgColor = [1, 1, 1]; needRender = true; };
+$('btnBgGray').onclick = () => { state.params.view = 'comp'; state.params.bgColor = [0.5, 0.5, 0.5]; needRender = true; };
+
+function syncViewSeg(name) {
+  if (name === 'matte' || name === 'split') setControlsExpanded($('viewToggle'), true);
+  [...$('viewSeg').children].forEach(b => b.classList.toggle('on', b.dataset.v === name));
+  $('splitRow').style.display = name === 'split' ? 'flex' : 'none';
+}
+
+/* ---------------------------------------------------------------------- */
+/* 载入素材                                                               */
+/* ---------------------------------------------------------------------- */
+function loadFile(file) { return BatchTasks.addFiles([file]); }
+
+function openMedia(file, saved) {
+  if (!file || state.exporting) return Promise.reject(new Error('正在导出，请稍后切换素材'));
+  const token = ++state.loadToken;
+  if (state.source && state.isVideo) state.source.pause();
+  if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
+  const url = state.sourceUrl = URL.createObjectURL(file);
+  state.sourceFile = file;
+  state.params = Keylight.mergeParams(JSON.parse(JSON.stringify(saved.params)));
+  state.layers = JSON.parse(JSON.stringify(saved.layers || []));
+  state.picking = false; view.classList.remove('picking'); $('btnPick').classList.remove('primary');
+  state.pendingFrame = null; state.seekJob = null; state.frameTimes = []; state.frameExact = false;
+  state.displayedFrame = state.requestedFrame = 0; state.capturing = false;
+  endDrag(); setFrameControls(false);  syncUI();
+  syncViewSeg(state.params.view === 'comp' ? 'result' : state.params.view);
+  [...$('despillMode').children].forEach(b => b.classList.toggle('on', b.dataset.v === state.params.despillMode));
+  $('btnPackedMp4').disabled = true; $('btnPlay').disabled = true; $('btnPlay').textContent = '▶';
+  $('frameReadout').textContent = '正在读取帧时间…'; $('estimateWrap').hidden = true;
+  return new Promise((resolve, reject) => {
+    const source = saved.video ? document.createElement('video') : new Image();
+    let settled = false;
+    const finish = error => {
+      if (settled) return; settled = true; clearTimeout(timer);
+      source.onload = source.onloadeddata = source.onerror = null;
+      error ? reject(error) : resolve();
+    };
+    const timer = setTimeout(() => finish(new Error('等待素材首帧超时')), 15000);
+    const ready = async () => {
+      if (token !== state.loadToken) return finish(new Error('素材已切换'));
+      try {
+        state.source = source; state.isVideo = saved.video;
+        if (saved.video) {
+          source.pause(); startPlaybackLoop();
+          state.frameTimes = saved.frameTimes.slice(); state.frameExact = saved.frameExact;
+          $('estimateFps').value = saved.estimateFps || 30;
+          $('estimateWrap').hidden = state.frameExact;
+          initRange(source);
+          state.clipIn = saved.clipIn; syncRangeUI();
+          const bounds = frameBounds(); queueFrame(clamp(saved.previewFrame || 0, bounds.first, bounds.last));
+          await waitForScrub();
+          $('btnPlay').disabled = false;
+        } else {
+          $('rangeTrack').classList.add('empty'); $('frameReadout').textContent = '图片';
+          draw(); setStatus('已载入图片 ' + file.name);
+        }
+        if (saved.history) { history.stack = saved.history.stack.slice(); history.index = saved.history.index; }
+        else { history.stack = []; history.index = -1; pushHistory(); }
+        needRender = true; finish();
+      } catch (error) { finish(error); }
+    };
+    if (saved.video) {
+      source.loop = false; source.muted = false; source.playsInline = true; source.onloadeddata = ready;
+    } else source.onload = ready;
+    source.onerror = () => finish(new Error('素材解码失败'));
+    source.src = url;
+  });
+}
+
+function waitFirstFrame(v) {
+  return new Promise(res => {
+    const finish = () => {
+      v.removeEventListener('loadeddata', finish);
+      clearTimeout(timer);
+      res();
+    };
+    const timer = setTimeout(finish, 2500);      // 兜底，避免永久等待
+    if (v.readyState >= 2) {
+      // 已经可以绘制，但仍要确认解出的是真实画面
+      v.requestVideoFrameCallback
+        ? v.requestVideoFrameCallback(() => finish())
+        : setTimeout(finish, 120);
+    } else {
+      v.addEventListener('loadeddata', () => {
+        v.requestVideoFrameCallback
+          ? v.requestVideoFrameCallback(() => finish())
+          : setTimeout(finish, 120);
+      }, { once: true });
+    }
+  });
+}
+
+function autoDetectScreen(src) {
+  const w = src.videoWidth || src.naturalWidth;
+  const h = src.videoHeight || src.naturalHeight;
+  if (!w || !h) return false;
+  tempCanvas.width = w; tempCanvas.height = h;
+  tempCtx.drawImage(src, 0, 0, w, h);
+  try {
+    const data = tempCtx.getImageData(0, 0, w, h).data;
+
+    // 画面还没解出来时读到的是一片黑或一片全同色，不能当成屏幕色
+    let maxLum = 0, sum = 0;
+    for (let i = 0; i < data.length; i += 16) {
+      const l = Math.max(data[i], data[i + 1], data[i + 2]);
+      if (l > maxLum) maxLum = l;
+      sum += l;
+    }
+    if (maxLum < 24) {
+      setStatus('画面还未就绪，无法自动取色，请稍后点「自动检测」');
+      return false;
+    }
+
+    const s = Keylight.autoSample(data, w, h);
+    const [r, g, b] = s;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if (mx - mn < 0.06) {                       // 近似中性色，不是色键
+      setStatus('未找到明显的绿/蓝底，请手动吸管取色');
+      return false;
+    }
+    state.params.screen = s;
+    syncUI();
+    return true;
+  } catch (e) {
+    console.warn(e);
+    return false;
+  }
+}
+
+/* 文件选择 */
+function setUploadMenu(open) {
+  $('uploadMenu').hidden = !open;
+  $('btnVideo').setAttribute('aria-expanded', String(open));
+}
+$('btnVideo').onclick = () => setUploadMenu($('uploadMenu').hidden);
+$('btnChooseVideos').onclick = () => { setUploadMenu(false); pickFile('video/*'); };
+$('uploadMenu').addEventListener('click', event => { if (event.target.closest('button')) setUploadMenu(false); });
+document.addEventListener('click', event => { if (!event.target.closest('.upload-entry')) setUploadMenu(false); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('uploadMenu').hidden) { setUploadMenu(false); $('btnVideo').focus(); } });
+
+function pickFile(accept) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = accept;
+  inp.multiple = true;
+  inp.onchange = () => BatchTasks.addFiles(inp.files);
+  inp.click();
+}
+
+/* 拖放：一次接收全部文件，也递归读取拖入的文件夹。 */
+const stage = $('stage');
+['dragenter', 'dragover'].forEach(type => window.addEventListener(type, event => {
+  event.preventDefault(); if (!state.exporting) stage.classList.add('dragover');
+}));
+window.addEventListener('dragleave', event => { if (!event.relatedTarget) stage.classList.remove('dragover'); });
+window.addEventListener('drop', event => BatchTasks.handleDrop(event));
+
+/* ---------------------------------------------------------------------- */
+/* 吸管取色                                                               */
+/* ---------------------------------------------------------------------- */
+$('btnPick').onclick = () => {
+  if (!state.source) return setStatus('先载入素材');
+  state.picking = !state.picking;
+  view.classList.toggle('picking', state.picking);
+  $('btnPick').classList.toggle('primary', state.picking);
+  setStatus(state.picking ? '点击画面上的绿幕区域取色' : '取色已关闭');
+};
+
+view.addEventListener('click', e => {
+  if (!state.picking || !state.source) return;
+  const src = state.source;
+  const w = src.videoWidth || src.naturalWidth;
+  const h = src.videoHeight || src.naturalHeight;
+  const rect = view.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / rect.width * w);
+  const y = Math.floor((e.clientY - rect.top) / rect.height * h);
+
+  tempCanvas.width = w; tempCanvas.height = h;
+  tempCtx.drawImage(src, 0, 0, w, h);
+  const px = tempCtx.getImageData(clamp(x, 0, w - 1), clamp(y, 0, h - 1), 1, 1).data;
+  state.params.screen = [px[0] / 255, px[1] / 255, px[2] / 255];
+  syncUI();
+  pushHistory();
+  setStatus(`取色 @(${x},${y})  rgb(${px[0]},${px[1]},${px[2]})`);
+});
+
+$('btnAuto').onclick = () => {
+  if (!state.source) return setStatus('先载入素材');
+  autoDetectScreen(state.source);
+  setStatus('已按画面边缘自动取色');
+};
+
+/* ---------------------------------------------------------------------- */
+/* 预设                                                                   */
+/* ---------------------------------------------------------------------- */
+/* 预设用内部归一化值（gain 1.25 = AE 的 125） */
+
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.onclick = () => {
+    Object.assign(state.params, PRESETS[btn.dataset.preset]);
+    syncUI();
+    pushHistory();
+    const g = Math.round(state.params.gain * 100);
+    setStatus(`已应用预设：${btn.textContent}（Screen Gain ${g}）`);
+  };
+});
+
+/* ---------------------------------------------------------------------- */
+/* 播放控制                                                               */
+/* ---------------------------------------------------------------------- */
+function startPlaybackLoop() {
+  const v = state.source;
+  let playbackRaf = 0;
+  const tickPlayback = () => {
+    if (state.source !== v || v.paused || state.exporting) return;
+    if (v.currentTime >= state.clipOut - 0.001) v.currentTime = state.clipIn;
+    updateTc();
+    playbackRaf = requestAnimationFrame(tickPlayback);
+  };
+  v.addEventListener('play', () => {
+    cancelAnimationFrame(playbackRaf);
+    if (!state.exporting) playbackRaf = requestAnimationFrame(tickPlayback);
+    $('btnPlay').textContent = '❚❚';
+  });
+  v.addEventListener('pause', () => {
+    cancelAnimationFrame(playbackRaf);
+    if (state.source !== v) return;
+    $('btnPlay').textContent = '▶';
+    if (!state.seekJob && !state.exporting && state.frameTimes.length) {
+      state.displayedFrame = state.requestedFrame = floorFrame(v.currentTime);
+      updateTc();
+    }
+  });
+  v.addEventListener('timeupdate', () => { if (state.source === v) updateTc(); });
+  v.addEventListener('seeked', () => {
+    if (state.source !== v) return;
+    if (!state.seekJob && state.frameTimes.length) {
+      state.displayedFrame = state.requestedFrame = floorFrame(v.currentTime);
+      needRender = true; updateTc();
+    }
+  });
+  v.addEventListener('ended', () => {
+    if (state.source !== v || state.exporting) return;
+    v.currentTime = state.clipIn;
+    v.play().catch(error => setStatus(error.message));
+  });
+}
+
+function fmt(t) {
+  if (!isFinite(t)) t = 0;
+  const hh = Math.floor(t / 3600);
+  const mm = Math.floor(t % 3600 / 60);
+  const ss = Math.floor(t % 60);
+  const cs = Math.floor((t % 1) * 100);
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+}
+
+function updateTc() {
+  const v = state.source;
+  if (!state.isVideo || !v) return;
+  $('tc').textContent = `${fmt(v.currentTime)} / ${fmt(v.duration)}`;
+  updatePlayhead();
+}
+
+$('btnPlay').onclick = async () => {
+  const v = state.source;
+  if (!state.isVideo || !v || state.exporting) return;
+  if (!v.paused) return pauseForScrub();
+  await waitForScrub();
+  if (state.source !== v) return;
+  if (v.currentTime < state.clipIn || v.currentTime >= state.clipOut - 0.001) await seekTo(v, state.clipIn);
+  v.play().catch(error => setStatus('播放失败：' + error.message));
+};
+
+
+/* ---------------------------------------------------------------------- */
+/* 导出                                                                   */
+/* ---------------------------------------------------------------------- */
+$('btnPng').onclick = async () => {
+  if (!state.source || state.exporting) return setStatus('先载入素材或等待导出结束');
+  await waitForScrub();
+  state.keyer.upload(state.source);
+  state.keyer.renderToOffscreen(state.params, outCanvas);
+  outCanvas.toBlob(blob => {
+    download(blob, `keyed_${Date.now()}.png`);
+    setStatus('已导出 PNG（带透明通道）');
+  }, 'image/png');
+};
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* 直接在 GPU 上合成彩色/遮罩双画面并编码 MP4；源视频与预览位置不变。 */
+let packedAbort = null;
+$('btnPackedCancel').onclick = () => { packedAbort?.abort(); $('btnPackedCancel').disabled = true; $('packedProgressText').textContent = '正在取消…'; };
+$('btnPackedMp4').onclick = () => BatchTasks.downloadActive();
+
+/* ---- PNG 序列 ---- */
+let seqCancelFlag = false;
+$('seqFps').addEventListener('change', () => {
+  const fps = clamp(parseInt($('seqFps').value) || 25, 1, 120);
+  $('seqStart').value = 0;
+  $('seqEnd').value = Math.max(0, Math.round(clipLength() * fps) - 1);
+  $('seqInfo').textContent = `选段 ${clipLength().toFixed(2)} 秒，${Math.round(clipLength() * fps)} 帧（输出帧号从 0 起）`;
+});
+$('btnSeq').onclick = () => {
+  const v = state.source;
+  if (state.exporting) return;
+  if (!v || !state.isVideo) return setStatus('PNG 序列需要先载入视频');
+  const fps = 25;
+  const startF = 0;
+  const endF = Math.max(0, Math.round(clipLength() * fps) - 1);
+  $('seqStart').value = startF;
+  $('seqEnd').value = endF;
+  $('seqFps').value = fps;
+  $('seqInfo').textContent =
+    `选区 ${(state.clipOut - state.clipIn).toFixed(2)} 秒，共 ${endF - startF + 1} 帧`;
+  $('seqModal').classList.add('on');
+};
+
+$('seqCancel').onclick = () => { seqCancelFlag = true; $('seqModal').classList.remove('on'); };
+
+$('seqOk').onclick = async () => {
+  const v = state.source;
+  if (!v || !state.isVideo || state.exporting) return;
+  const fps = clamp(parseInt($('seqFps').value) || 25, 1, 120);
+  const maxF = Math.max(0, Math.round(clipLength() * fps) - 1);
+  const start = clamp(parseInt($('seqStart').value) || 0, 0, maxF);
+  const end = clamp(parseInt($('seqEnd').value) || 0, start, maxF);
+  const n = end - start + 1;
+  await waitForScrub();
+  const savedIndex = state.displayedFrame, clipStart = state.clipIn;
+  const wasPlaying = !v.paused;
+  pauseForScrub();
+  state.exporting = state.capturing = true;
+  setFrameControls(false);
+  seqCancelFlag = false;
+  $('seqOk').disabled = true;
+  $('seqCancel').textContent = '中止';
+  const zi = new ZipWriter();
+  try {
+    for (let i = 0; i < n && !seqCancelFlag; i++) {
+      await seekTo(v, clipStart + (start + i) / fps + 0.00001);
+      state.keyer.upload(v);
+      state.keyer.renderToOffscreen(state.params, outCanvas);
+      const blob = await new Promise(resolve => outCanvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('PNG 生成失败');
+      zi.add(`frame_${String(start + i).padStart(5, '0')}.png`, new Uint8Array(await blob.arrayBuffer()));
+      $('seqProg').style.width = ((i + 1) / n * 100).toFixed(1) + '%';
+      setStatus(`导出中 ${i + 1}/${n}`);
+    }
+    if (!seqCancelFlag) { download(zi.finish(), `keyed_seq_${Date.now()}.zip`); setStatus(`已导出 ${n} 帧 PNG 序列`); }
+    else setStatus('导出已中止');
+  } catch (error) { setStatus('导出失败：' + error.message); }
+  finally {
+    state.exporting = state.capturing = false;
+    setFrameControls(true);
+    $('seqProg').style.width = '0%'; $('seqOk').disabled = false;
+    $('seqCancel').textContent = '取消'; $('seqModal').classList.remove('on');
+    queueFrame(savedIndex); await waitForScrub();
+    if (wasPlaying) v.play().catch(() => {});
+  }
+};
+
+function seekTo(video, t) {
+  const target = clamp(t, 0, Math.max(0, video.duration - 0.0001));
+  if (!video.seeking && video.readyState >= 2 && Math.abs(video.currentTime - target) < 1e-6) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const finish = error => {
+      clearTimeout(timer);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+      error ? reject(error) : resolve();
+    };
+    const onSeeked = () => { if (!video.seeking && video.readyState >= 2) finish(); };
+    const onError = () => finish(new Error('视频帧解码失败'));
+    const timer = setTimeout(() => finish(new Error('等待视频帧超时，请重试')), 5000);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('error', onError);
+    try { video.currentTime = target; } catch (error) { finish(error); }
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* 4 秒固定窗口时间轴                                                      */
+/* 条带本身固定代表 4 秒；拖动条带 = 让 4 秒窗口在整段视频上滑动。          */
+/* ---------------------------------------------------------------------- */
+/* 固定四秒选段；所有手动定位都先换算成帧索引，再跳到该帧内部。 */
+const CLIP_LEN = 4.0;
+let rangeDrag = null;
+let headDrag = false;
+
+function clipLength() {
+  return state.isVideo && state.source && Number.isFinite(state.source.duration)
+    ? Math.min(CLIP_LEN, state.source.duration) : CLIP_LEN;
+}
+
+function floorFrame(t) {
+  const times = state.frameTimes;
+  let lo = 0, hi = times.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; if (times[mid] <= t + 1e-7) lo = mid + 1; else hi = mid; }
+  return Math.max(0, lo - 1);
+}
+
+function nearestFrame(t) {
+  const i = floorFrame(t), times = state.frameTimes;
+  return i + 1 < times.length && Math.abs(times[i + 1] - t) < Math.abs(times[i] - t) ? i + 1 : i;
+}
+
+function frameBounds() {
+  const times = state.frameTimes;
+  const first = nearestFrame(state.clipIn);
+  const last = Math.max(first, floorFrame(state.clipOut - 1e-6));
+  return { first, last: Math.min(times.length - 1, last) };
+}
+
+function maxStartFrame() {
+  return floorFrame(Math.max(0, state.source.duration - clipLength()));
+}
+
+function frameSeekTime(index) {
+  const times = state.frameTimes, begin = times[index];
+  const end = index + 1 < times.length ? times[index + 1] : state.source.duration;
+  // Avoid rounding exactly onto the preceding sample. No interpolation or retiming.
+  return begin + Math.min(0.001, Math.max(0, end - begin) / 4);
+}
+
+function setFrameControls(enabled) {
+  for (const id of ['btnPrevFrame', 'btnNextFrame', 'btnClipPrev', 'btnClipNext', 'btnFullClip']) $(id).disabled = !enabled;
+}
+
+function pauseForScrub() {
+  const v = state.source;
+  if (state.isVideo && v) v.pause();
+  $('btnPlay').textContent = '▶';
+}
+
+// Serialize seeks: do not repeatedly interrupt the decoder while dragging.
+// A rapid drag coalesces pending requests; the final requested frame always wins.
+function queueFrame(index) {
+  if (!state.frameTimes.length || state.exporting) return;
+  pauseForScrub();
+  state.requestedFrame = clamp(index, 0, state.frameTimes.length - 1);
+  state.pendingFrame = state.requestedFrame;
+  if (!state.seekJob) state.seekJob = drainFrameQueue();
+}
+
+async function drainFrameQueue() {
+  const v = state.source, token = state.loadToken;
+  try {
+    while (state.pendingFrame !== null && state.source === v && token === state.loadToken) {
+      const index = state.pendingFrame;
+      state.pendingFrame = null;
+      await seekTo(v, frameSeekTime(index));
+      if (state.source !== v || token !== state.loadToken) return;
+      state.displayedFrame = index;
+      // Read decoded pixels now, rather than refreshing only after pointerup.
+      draw();
+      needRender = false;
+      updateTc();
+    }
+  } catch (error) {
+    if (state.source === v && token === state.loadToken) {
+      state.pendingFrame = null;
+      setStatus('定位失败：' + error.message);
+    }
+  } finally {
+    if (token === state.loadToken) state.seekJob = null;
+  }
+}
+
+async function waitForScrub() {
+  if (state.seekJob) await state.seekJob;
+}
+
+function initRange(v) {
+  if (!state.isVideo || state.source !== v || !Number.isFinite(v.duration)) return;
+  state.clipLen = clipLength();
+  state.clipIn = 0;
+  state.clipOut = state.clipLen;
+  state.displayedFrame = state.requestedFrame = 0;
+  $('rangeTrack').classList.remove('empty');
+  setFrameControls(state.frameTimes.length > 0);
+  syncRangeUI();
+  queueFrame(0);
+  setStatus(state.frameExact
+    ? `已读取 ${state.frameTimes.length} 帧时间；拖动逐帧选段，画布显示首帧`
+    : '该格式未读取到真实帧表，暂按右侧所填帧率定位（估算）');
+}
+
+function clampRange() {
+  if (!state.source || !state.isVideo || !state.frameTimes.length) return;
+  const index = clamp(nearestFrame(state.clipIn), 0, maxStartFrame());
+  state.clipIn = state.frameTimes[index];
+  state.clipOut = state.clipIn + clipLength();
+  state.clipLen = clipLength();
+}
+
+function syncRangeUI() {
+  if (!state.source || !state.isVideo || !state.frameTimes.length) return;
+  clampRange();
+  const { first, last } = frameBounds();
+  $('rangeDur').textContent = clipLength().toFixed(2) + 's';
+  $('rangeIn').textContent = `入 第 ${first + 1} 帧 · ${state.clipIn.toFixed(3)}s`;
+  $('rangeOut').textContent = `出 ${state.clipOut.toFixed(3)}s`;
+  $('rangeEdgeL').style.display = first > 0 ? 'flex' : 'none';
+  $('rangeEdgeR').style.display = first < maxStartFrame() ? 'flex' : 'none';
+  $('rangeHint').textContent = `${state.frameExact ? '逐帧' : '估算'}拖动选段 · ${last - first + 1} 帧`;
+  updatePlayhead();
+}
+
+function updatePlayhead() {
+  const v = state.source;
+  if (!v || !state.isVideo || !state.frameTimes.length) return;
+  const index = v.paused ? state.displayedFrame : floorFrame(v.currentTime);
+  const t = state.frameTimes[index] || 0;
+  const fraction = clamp((t - state.clipIn) / Math.max(0.001, clipLength()), 0, 1);
+  $('rangePlayhead').style.left = (fraction * 100) + '%';
+  $('frameReadout').textContent = `${state.frameExact ? '' : '约 '}第 ${index + 1} / ${state.frameTimes.length} 帧 · ${t.toFixed(3)}s`;
+}
+
+function moveClipToFrame(index) {
+  if (!state.frameTimes.length || state.exporting) return;
+  index = clamp(index, 0, maxStartFrame());
+  state.clipIn = state.frameTimes[index];
+  syncRangeUI();
+  queueFrame(index);
+}
+
+function shiftClipFrames(delta) {
+  if (!state.frameTimes.length) return;
+  moveClipToFrame(nearestFrame(state.clipIn) + delta);
+}
+
+function stepPlayhead(delta) {
+  if (!state.frameTimes.length || state.exporting) return;
+  const bounds = frameBounds();
+  const index = !state.source.paused ? floorFrame(state.source.currentTime) : state.requestedFrame;
+  queueFrame(clamp(index + delta, bounds.first, bounds.last));
+}
+
+function showFrameTip(index) {
+  const t = state.frameTimes[index];
+  const fraction = clamp((t - state.clipIn) / Math.max(0.001, clipLength()), 0, 1);
+  const tip = $('rangeTip'), width = $('rangeTrack').getBoundingClientRect().width;
+  tip.textContent = `第 ${index + 1} 帧 · ${t.toFixed(3)}s`;
+  tip.style.display = 'block';
+  const half = tip.offsetWidth / 2 + 7;
+  tip.style.left = clamp(fraction * width, half, Math.max(half, width - half)) + 'px';
+}
+
+$('rangeTrack').addEventListener('pointerdown', e => {
+  if (!state.frameTimes.length || state.exporting || e.button !== 0) return;
+  e.preventDefault();
+  pauseForScrub();
+  const bounds = frameBounds();
+  rangeDrag = { pointerId: e.pointerId, startX: e.clientX, startIndex: bounds.first,
+    pixelsPerFrame: $('rangeTrack').getBoundingClientRect().width / Math.max(1, bounds.last - bounds.first + 1) };
+  $('rangeTrack').classList.add('dragging');
+  $('rangeTrack').setPointerCapture(e.pointerId);
+  moveClipToFrame(bounds.first);
+  showFrameTip(bounds.first);
+});
+
+window.addEventListener('pointermove', e => {
+  if (!rangeDrag || e.pointerId !== rangeDrag.pointerId) return;
+  const steps = Math.round((rangeDrag.startX - e.clientX) / Math.max(1, rangeDrag.pixelsPerFrame));
+  moveClipToFrame(rangeDrag.startIndex + steps);
+  showFrameTip(nearestFrame(state.clipIn));
+});
+
+function endDrag() {
+  rangeDrag = null;
+  headDrag = false;
+  $('rangeTrack').classList.remove('dragging', 'scrubbing');
+  $('rangeTip').style.display = 'none';
+}
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
+function scrubTo(clientX) {
+  if (!state.frameTimes.length || state.exporting) return;
+  const box = $('rangeTrack').getBoundingClientRect();
+  const fraction = clamp((clientX - box.left) / Math.max(1, box.width), 0, 1);
+  const bounds = frameBounds();
+  const index = clamp(nearestFrame(state.clipIn + fraction * clipLength()), bounds.first, bounds.last);
+  queueFrame(index);
+  showFrameTip(index);
+}
+
+$('rangePlayhead').addEventListener('pointerdown', e => {
+  if (!state.frameTimes.length || state.exporting || e.button !== 0) return;
+  e.stopPropagation(); e.preventDefault();
+  headDrag = e.pointerId;
+  $('rangePlayhead').setPointerCapture(e.pointerId);
+  $('rangeTrack').classList.add('scrubbing');
+  scrubTo(e.clientX);
+});
+window.addEventListener('pointermove', e => {
+  if (headDrag === e.pointerId) { e.preventDefault(); scrubTo(e.clientX); }
+}, { passive: false });
+
+$('btnPrevFrame').onclick = () => stepPlayhead(-1);
+$('btnNextFrame').onclick = () => stepPlayhead(1);
+$('btnClipPrev').onclick = () => shiftClipFrames(-1);
+$('btnClipNext').onclick = () => shiftClipFrames(1);
+$('btnFullClip').onclick = () => moveClipToFrame(0);
+
+function useEstimatedFrameRate() {
+  const v = state.source;
+  if (!v || !state.isVideo || state.frameExact || state.exporting) return;
+  const fps = clamp(Number($('estimateFps').value) || 30, 1, 120);
+  $('estimateFps').value = fps;
+  const count = Math.min(500000, Math.ceil(v.duration * fps));
+  state.frameTimes = Array.from({ length: count }, (_, i) => i / fps);
+  state.frameExact = false;
+  initRange(v);
+}
+$('estimateFps').addEventListener('change', useEstimatedFrameRate);
+
+window.addEventListener('keydown', e => {
+  if (!state.isVideo || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const delta = e.key === 'ArrowLeft' ? -1 : 1;
+    e.shiftKey ? shiftClipFrames(delta) : stepPlayhead(delta);
+  }
+});
+
+
+/* ---- WebM ---- */
+/* 预览画布的 WebGL 上下文是 opaque 的，录不出透明通道。
+   所以这里改为逐帧渲染到带 alpha 的离屏画布，再从它 captureStream。 */
+$('btnWebm').onclick = async () => {
+  const v = state.source;
+  if (!v || !state.isVideo) return setStatus('WebM 导出需要先载入视频');
+  if (state.exporting) return;
+  if (!window.MediaRecorder) return setStatus('当前浏览器不支持 MediaRecorder');
+  await waitForScrub();
+
+  const wasPlaying = !v.paused;
+  v.pause();
+
+  const recCanvas = document.createElement('canvas');
+  recCanvas.width = state.keyer.w;
+  recCanvas.height = state.keyer.h;
+  const stream = recCanvas.captureStream(30);
+
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9' : 'video/webm';
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 });
+  state.exporting = true;
+  setFrameControls(false);
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+
+  let stopFlag = false;
+  let raf = 0;
+
+  // 逐帧把处理结果画到 recCanvas（带 alpha）
+  const pump = () => {
+    if (stopFlag || v.ended) return;
+    try {
+      state.keyer.upload(v);
+      state.keyer.renderToOffscreen(state.params, recCanvas);
+    } catch (e) { console.warn(e); }
+    raf = requestAnimationFrame(pump);
+  };
+
+  rec.onstop = () => {
+    stopFlag = true;
+    state.exporting = false;
+    setFrameControls(true);
+    stream.getTracks().forEach(track => track.stop());
+    cancelAnimationFrame(raf);
+    download(new Blob(chunks, { type: 'video/webm' }), `keyed_${Date.now()}.webm`);
+    setStatus(`已导出 WebM（仅画面，${recCanvas.width}×${recCanvas.height}，${segLen.toFixed(2)}s）`);
+    v.currentTime = state.clipIn;
+    if (wasPlaying) v.play();
+    needRender = true;
+  };
+
+  // 只录选区
+  const segStart = state.clipIn;
+  const segEnd = state.clipOut;
+  const segLen = Math.max(0.05, segEnd - segStart);
+
+  v.currentTime = segStart;
+  await seekTo(v, segStart);
+  rec.start();
+  pump();
+  v.play();
+
+  setStatus(`录制中（选区 ${segLen.toFixed(2)}s）……结束自动停止`);
+  let stopped = false;
+  const finishRec = () => {
+    if (stopped) return;
+    stopped = true;
+    v.removeEventListener('ended', finishRec);
+    v.removeEventListener('timeupdate', watchEnd);
+    clearInterval(watchTimer);
+    if (rec.state === 'recording') rec.stop();
+  };
+  const watchEnd = () => {
+    if (v.currentTime >= segEnd - 1e-3) finishRec();
+  };
+  v.addEventListener('ended', finishRec);
+  v.addEventListener('timeupdate', watchEnd);
+  const watchTimer = setInterval(watchEnd, 40);
+
+  // 兜底：选区长度 + 余量
+  setTimeout(finishRec, segLen * 1000 + 800);
+};
+
+/* ---------------------------------------------------------------------- */
+/* 重置                                                                   */
+/* ---------------------------------------------------------------------- */
+$('btnReset').onclick = () => {
+  const scr = state.params.screen;
+  state.params = defaultParams({ screen: scr });
+  state.layers = [];
+  
+  syncUI();
+  syncViewSeg('result');
+  pushHistory();
+  setStatus('全部重置');
+};
+
+/* 只把参数恢复出厂值，保留屏幕色与叠加层 */
+$('btnDefaults').onclick = () => {
+  const keep = state.params.screen;
+  state.params = defaultParams({ screen: keep });
+  syncUI();
+  pushHistory();
+  setStatus('已恢复默认预设：发丝优先');
+};
+
+/* ---------------------------------------------------------------------- */
+/* 状态栏                                                                 */
+/* ---------------------------------------------------------------------- */
+function setStatus(msg) { $('statusMsg').textContent = msg; }
+
+/* ---------------------------------------------------------------------- */
+/* 极简 ZIP 写入（store 模式，无外部依赖）                                 */
+/* ---------------------------------------------------------------------- */
+class ZipWriter {
+  constructor() { this.entries = []; this.offset = 0; this.parts = []; }
+
+  add(name, data) {
+    const nameBytes = new TextEncoder().encode(name);
+    const crc = ZipWriter.crc32(data);
+    const size = data.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 0x0800, true); // UTF-8 filenames
+    dv.setUint16(8, 0, true);         // store
+    dv.setUint16(10, 0, true);
+    dv.setUint16(12, 0, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, size, true);
+    dv.setUint32(22, size, true);
+    dv.setUint16(26, nameBytes.length, true);
+    dv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    this.parts.push(local, data);
+    this.entries.push({ nameBytes, crc, size, offset: this.offset });
+    this.offset += local.length + size;
+  }
+
+  finish() {
+    const central = [];
+    let cdSize = 0;
+    for (const e of this.entries) {
+      const rec = new Uint8Array(46 + e.nameBytes.length);
+      const dv = new DataView(rec.buffer);
+      dv.setUint32(0, 0x02014b50, true);
+      dv.setUint16(4, 20, true);
+      dv.setUint16(6, 20, true);
+      dv.setUint16(8, 0x0800, true); // UTF-8 filenames
+      dv.setUint16(10, 0, true);
+      dv.setUint16(12, 0, true);
+      dv.setUint16(14, 0, true);
+      dv.setUint32(16, e.crc, true);
+      dv.setUint32(20, e.size, true);
+      dv.setUint32(24, e.size, true);
+      dv.setUint16(28, e.nameBytes.length, true);
+      dv.setUint16(30, 0, true);
+      dv.setUint16(32, 0, true);
+      dv.setUint16(34, 0, true);
+      dv.setUint16(36, 0, true);
+      dv.setUint32(38, 0, true);
+      dv.setUint32(42, e.offset, true);
+      rec.set(e.nameBytes, 46);
+      central.push(rec);
+      cdSize += rec.length;
+    }
+    const end = new Uint8Array(22);
+    const dv = new DataView(end.buffer);
+    dv.setUint32(0, 0x06054b50, true);
+    dv.setUint16(8, this.entries.length, true);
+    dv.setUint16(10, this.entries.length, true);
+    dv.setUint32(12, cdSize, true);
+    dv.setUint32(16, this.offset, true);
+
+    return new Blob([...this.parts, ...central, end], { type: 'application/zip' });
+  }
+
+  static crc32(buf) {
+    if (!ZipWriter._tbl) {
+      const t = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        t[i] = c >>> 0;
+      }
+      ZipWriter._tbl = t;
+    }
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) c = ZipWriter._tbl[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* 启动                                                                   */
+/* ---------------------------------------------------------------------- */
+syncUI();
+
+pushHistory();          // 初始快照，撤销才能回到打开时的状态
+state.raf = requestAnimationFrame(tick);
+
+/* 键盘快捷键 */
+window.addEventListener('keydown', e => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+  // 撤销 / 重做：焦点在数值框里也要能触发
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    e.shiftKey ? redo() : undo();
+    return;
+  }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+
+  if (inField) return;
+  if (e.code === 'Space' && state.isVideo) { e.preventDefault(); $('btnPlay').click(); }
+  if (e.key === 's') $('btnPick').click();
+  if (e.key === '1') { state.params.view = 'result'; syncViewSeg('result'); needRender = true; }
+  if (e.key === '2') { state.params.view = 'source'; syncViewSeg('source'); needRender = true; }
+  if (e.key === '3') { state.params.view = 'matte'; syncViewSeg('matte'); needRender = true; }
+  if (e.key === '4') { state.params.view = 'split'; syncViewSeg('split'); needRender = true; }
+});
+
+window.addEventListener('resize', () => { needRender = true; });
+</script>
+<script src="studio-ui.js"></script>
+<script src="batch-tasks.js?v=20261110-clean-controls"></script></body>
+</html>

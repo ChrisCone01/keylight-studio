@@ -1,0 +1,26 @@
+{
+  "canvas": [
+    1136,
+    1424
+  ],
+  "region": {
+    "x": 62,
+    "y": 307,
+    "width": 1014,
+    "height": 1052
+  },
+  "sourceAlphaBounds": [
+    183,
+    270,
+    617,
+    993
+  ],
+  "placement": {
+    "x": 253,
+    "y": 307,
+    "width": 631,
+    "height": 1052
+  },
+  "layout": "proportional contain, centered; one-frame positioning preview only",
+  "outsideAlphaNonzero": 0
+}

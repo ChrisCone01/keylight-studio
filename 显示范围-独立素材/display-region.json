@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1136,
+    "height": 1424
+  },
+  "visibleRect": {
+    "x": 62,
+    "y": 307,
+    "width": 1014,
+    "height": 1052
+  },
+  "margins": {
+    "left": 62,
+    "right": 60,
+    "top": 307,
+    "bottom": 65
+  },
+  "pixelBounds": {
+    "xMinInclusive": 62,
+    "xMaxInclusive": 1075,
+    "yMinInclusive": 307,
+    "yMaxInclusive": 1358
+  },
+  "clip": {
+    "shape": "rectangle",
+    "outsideAlpha": 0,
+    "feather": 0,
+    "excludeReferenceBorder": true
+  },
+  "reference": {
+    "file": "娃娃范围.png",
+    "sha256": "dea951cf30aedcbef3255525bdd4aefc494dd8b79a1f2f1abb576fffcfab2dbf",
+    "purpleRGB": [
+      84,
+      7,
+      126
+    ],
+    "measurement": "exact purple pixels; user confirmed strict pixel bounds"
+  }
+}

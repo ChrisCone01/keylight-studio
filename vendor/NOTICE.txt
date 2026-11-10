@@ -1,0 +1,6 @@
+Mediabunny 1.65.2
+Source: https://github.com/Vanilagy/mediabunny
+Unmodified browser bundle from the official npm package mediabunny@1.65.2.
+License: MPL-2.0, included as LICENSE-mediabunny.txt.
+Source package: https://registry.npmjs.org/mediabunny/-/mediabunny-1.65.2.tgz
+Package integrity: sha512-goZpibvo/5hkc/56WVNm93Ini+o7K4y8aXA20c/BN1B+m3L5aHQa8MTvO+S1APg/YI8kMILtrX6QCqUtxLW7bA==

@@ -1,0 +1,34 @@
+{
+  "canvas": [
+    1136,
+    1424
+  ],
+  "region": {
+    "x": 62,
+    "y": 307,
+    "width": 1014,
+    "height": 1052
+  },
+  "sourceAlphaBounds": [
+    183,
+    270,
+    617,
+    993
+  ],
+  "relativeScale": 0.9,
+  "placement": {
+    "x": 285,
+    "y": 359,
+    "width": 568,
+    "height": 947
+  },
+  "insetWithinRegion": {
+    "left": 223,
+    "right": 223,
+    "top": 52,
+    "bottom": 53
+  },
+  "layout": "90% of previous contain size, centered; single-frame preview, not whole-clip bounds validation",
+  "futureVideoRule": "Use the same position and scale for the entire clip; do not recrop and resize each frame. Apply fixed region mask last.",
+  "outsideAlphaNonzero": 0
+}

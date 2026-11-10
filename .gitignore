@@ -1,0 +1,12 @@
+# 每次改动前生成的本地快照目录，不入库
+backup-before-*/
+backup-*/
+
+# 页面历史副本
+index.backup.*.html
+index.before-*.html
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
